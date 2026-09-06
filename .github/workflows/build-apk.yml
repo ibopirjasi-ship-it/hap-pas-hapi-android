@@ -1,0 +1,264 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Merr projektin
+        uses: actions/checkout@v4
+
+      - name: Instalo Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalo Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalo Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Krijo projektin Android
+        shell: bash
+        run: |
+          mkdir -p app/src/main/java/com/happashapi/gjermanisht
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "HapPasHapi"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.happashapi.gjermanisht'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId "com.happashapi.gjermanisht"
+                  minSdk 24
+                  targetSdk 35
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="Hap pas Hapi"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@style/AppTheme">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:screenOrientation="portrait"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#B42F3A</item>
+                  <item name="android:statusBarColor">#B42F3A</item>
+                  <item name="android:navigationBarColor">#FFFFFF</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#C8102E"
+                  android:pathData="M15,20h34v68h-34z"/>
+              <path android:fillColor="#000000"
+                  android:pathData="M49,20h20v68h-20z"/>
+              <path android:fillColor="#FFCC00"
+                  android:pathData="M69,20h24v68h-24z"/>
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M25,38h58v8h-58zM25,52h58v8h-58zM25,66h58v8h-58z"/>
+          </vector>
+          EOF
+
+          cat > app/src/main/java/com/happashapi/gjermanisht/MainActivity.java <<'EOF'
+          package com.happashapi.gjermanisht;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              private PermissionRequest pendingRequest;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setAllowFileAccess(false);
+                  settings.setAllowContentAccess(false);
+                  settings.setUserAgentString(
+                      settings.getUserAgentString() + " HapPasHapiAndroid/1.0"
+                  );
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onPermissionRequest(PermissionRequest request) {
+                          runOnUiThread(() -> {
+                              if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                                      == PackageManager.PERMISSION_GRANTED) {
+                                  request.grant(request.getResources());
+                              } else {
+                                  pendingRequest = request;
+                                  requestPermissions(
+                                      new String[]{Manifest.permission.RECORD_AUDIO}, 100
+                                  );
+                              }
+                          });
+                      }
+                  });
+
+                  if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                          != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(
+                          new String[]{Manifest.permission.RECORD_AUDIO}, 100
+                      );
+                  }
+
+                  webView.loadUrl(
+                      "https://hap-pas-hapi-gjermanisht.ibotiran.chatgpt.site"
+                  );
+              }
+
+              @Override
+              public void onRequestPermissionsResult(
+                  int requestCode,
+                  String[] permissions,
+                  int[] grantResults
+              ) {
+                  super.onRequestPermissionsResult(
+                      requestCode, permissions, grantResults
+                  );
+
+                  if (requestCode == 100 && pendingRequest != null) {
+                      if (grantResults.length > 0
+                              && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                          pendingRequest.grant(pendingRequest.getResources());
+                      } else {
+                          pendingRequest.deny();
+                      }
+                      pendingRequest = null;
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.destroy();
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Ndërto APK
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Ruaj APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hap-pas-Hapi-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
