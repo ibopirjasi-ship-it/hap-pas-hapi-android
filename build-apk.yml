@@ -1,0 +1,63 @@
+name: Build Hap pas Hapi Native APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract native project
+        run: |
+          rm -rf build-src
+          mkdir build-src
+          unzip -q Hap-pas-Hapi-Native-Ready.zip -d build-src
+          test -f build-src/package.json
+          test -f build-src/app.json
+          test -f build-src/assets/icon.png
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: build-src/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: build-src
+        run: npm ci
+
+      - name: Generate native Android project
+        working-directory: build-src
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build debug APK
+        working-directory: build-src/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hap-pas-Hapi-Native-APK
+          path: build-src/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
